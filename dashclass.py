@@ -1,82 +1,103 @@
 import os
+import sqlite3
 import pandas as pd
 import streamlit as st
 
-# Caminho do arquivo CSV para salvar o progresso
-data_file = "registro_aulas.csv"
+# Criar banco de dados SQLite
+DB_FILE = "dashclass.db"
+conn = sqlite3.connect(DB_FILE)
+c = conn.cursor()
 
-# Lista atualizada das turmas separadas por turno e disciplinas (agora permitindo múltiplas disciplinas)
-matutino_turmas = {
-    "3°09": ["FILO"], "2°06": ["HIS", "FILO"], "2°04": ["FILO"], "2°07": ["HIS"], "2°08": ["HIS"], "2°10": ["FILO"],
-    "2°05": ["FILO"], "3°10": ["FILO"], "2°02": ["FILO"], "2°01": ["FILO"], "2°03": ["FILO"], "1°06": ["FILO"],
-    "1°05": ["FILO"], "3°09": ["FILO"]
-}
+# Criar tabela de turmas e disciplinas se não existir
+c.execute('''
+CREATE TABLE IF NOT EXISTS turmas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    turno TEXT NOT NULL
+)
+''')
 
-vespertino_turmas = {
-    "1°12 (08)": ["SOCIO"], "2°09": ["HIS"], "1°13 (09)": ["HIS"], "1°11 (07)": ["SOCIO"], "1°05": ["SOCIO"],
-    "2°08": ["HIS"], "1°13 (09)": ["SOCIO"], "1°03": ["SOCIO"], "1°04": ["SOCIO"], "1°02": ["SOCIO"], "1°06": ["SOCIO"]
-}
+c.execute('''
+CREATE TABLE IF NOT EXISTS disciplinas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    turma_id INTEGER NOT NULL,
+    nome TEXT NOT NULL,
+    FOREIGN KEY (turma_id) REFERENCES turmas (id)
+)
+''')
+conn.commit()
 
-# Criar DataFrame inicial se o arquivo não existir
-if not os.path.exists(data_file) or "Disciplina" not in pd.read_csv(data_file).columns:
-    turmas = []
-    disciplinas = []
-    turnos = []
-    
-    for turma, dis_list in matutino_turmas.items():
-        for disc in dis_list:
-            turmas.append(turma)
-            disciplinas.append(disc)
-            turnos.append("Matutino")
-    
-    for turma, dis_list in vespertino_turmas.items():
-        for disc in dis_list:
-            turmas.append(turma)
-            disciplinas.append(disc)
-            turnos.append("Vespertino")
-    
-    df = pd.DataFrame({"Turmas": turmas, "Disciplina": disciplinas, "Turno": turnos,
-                        **{f"Aula {i}": ["❌"] * len(turmas) for i in range(1, 11)}})
-    df.to_csv(data_file, index=False)
-else:
-    df = pd.read_csv(data_file)
+# Função para adicionar turma
+def adicionar_turma(nome, turno):
+    c.execute("INSERT INTO turmas (nome, turno) VALUES (?, ?)", (nome, turno))
+    conn.commit()
 
-# Garantir que a coluna "Disciplina" está presente no DataFrame
-if "Disciplina" not in df.columns:
-    df["Disciplina"] = df["Turmas"].map({**matutino_turmas, **vespertino_turmas})
-    df.to_csv(data_file, index=False)
+# Função para adicionar disciplina a uma turma
+def adicionar_disciplina(turma_id, nome):
+    c.execute("INSERT INTO disciplinas (turma_id, nome) VALUES (?, ?)", (turma_id, nome))
+    conn.commit()
+
+# Função para obter todas as turmas
+def obter_turmas():
+    c.execute("SELECT id, nome, turno FROM turmas")
+    return c.fetchall()
+
+# Função para obter disciplinas de uma turma
+def obter_disciplinas(turma_id):
+    c.execute("SELECT nome FROM disciplinas WHERE turma_id = ?", (turma_id,))
+    return [row[0] for row in c.fetchall()]
 
 # Interface no Streamlit
-st.title("Dashboard de Registro de Aulas")
+st.title("DashClass - Gerenciamento de Aulas")
 
-# Seletor de turno
-turno_selecionado = st.radio("Selecione o Turno:", ["Matutino", "Vespertino"])
+# Aba para cadastro de turmas e disciplinas
+st.sidebar.title("Cadastro de Turmas")
+novo_nome_turma = st.sidebar.text_input("Nome da Turma:")
+turno_turma = st.sidebar.radio("Turno:", ["Matutino", "Vespertino"])
 
-# Filtrar turmas pelo turno selecionado
-turmas_filtradas = df[df["Turno"] == turno_selecionado]
+if st.sidebar.button("Adicionar Turma") and novo_nome_turma:
+    adicionar_turma(novo_nome_turma, turno_turma)
+    st.sidebar.success("Turma adicionada com sucesso!")
 
-# Dropdown para seleção da turma e disciplina
-turma_selecionada = st.selectbox("Selecione a Turma:", turmas_filtradas["Turmas"].unique())
+# Exibir turmas cadastradas
+turmas = obter_turmas()
+if turmas:
+    st.sidebar.subheader("Turmas Cadastradas")
+    for turma in turmas:
+        st.sidebar.text(f"{turma[1]} ({turma[2]})")
 
-# Filtrar disciplinas disponíveis para a turma selecionada
-disciplinas_disponiveis = turmas_filtradas[turmas_filtradas["Turmas"] == turma_selecionada]["Disciplina"].tolist()
-disciplina_selecionada = st.selectbox("Selecione a Disciplina:", disciplinas_disponiveis)
+# Cadastro de disciplinas
+st.sidebar.subheader("Adicionar Disciplinas")
+if turmas:
+    turma_selecionada = st.sidebar.selectbox("Selecione a Turma:", turmas, format_func=lambda x: f"{x[1]} ({x[2]})")
+    nova_disciplina = st.sidebar.text_input("Nome da Disciplina:")
+    if st.sidebar.button("Adicionar Disciplina") and nova_disciplina:
+        adicionar_disciplina(turma_selecionada[0], nova_disciplina)
+        st.sidebar.success("Disciplina adicionada com sucesso!")
 
-# Mostrar disciplina
-df_filtro = df[(df["Turmas"] == turma_selecionada) & (df["Disciplina"] == disciplina_selecionada)]
-st.write(f"**Disciplina:** {disciplina_selecionada}")
+# Tela de registro de aulas
+st.header("Registro de Aulas")
+if turmas:
+    turma_opcao = st.selectbox("Selecione a Turma:", turmas, format_func=lambda x: f"{x[1]} ({x[2]})")
+    disciplinas_turma = obter_disciplinas(turma_opcao[0])
+    if disciplinas_turma:
+        disciplina_opcao = st.selectbox("Selecione a Disciplina:", disciplinas_turma)
+        st.write(f"**Disciplina:** {disciplina_opcao}")
+        
+        # Criar checkboxes para marcar aulas
+        aulas_status = []
+        st.write("### Registro de Aulas")
+        for i in range(1, 11):
+            status = st.checkbox(f"Aula {i}")
+            aulas_status.append("✔️" if status else "❌")
+        
+        # Botão para salvar progresso
+        if st.button("Salvar Progresso"):
+            st.success("Progresso salvo com sucesso! ✅")
+    else:
+        st.warning("Esta turma ainda não possui disciplinas cadastradas.")
+else:
+    st.warning("Nenhuma turma cadastrada. Cadastre uma turma no menu lateral.")
 
-# Criar checkboxes para marcar aulas
-aulas_status = []
-st.write("### Registro de Aulas")
-for i in range(1, 11):
-    aula_atual = df_filtro[f"Aula {i}"].values[0]
-    status = st.checkbox(f"Aula {i}", value=(aula_atual == "✔️"))
-    aulas_status.append("✔️" if status else "❌")
-
-# Botão para salvar
-if st.button("Salvar Progresso"):
-    for i in range(1, 11):
-        df.loc[(df["Turmas"] == turma_selecionada) & (df["Disciplina"] == disciplina_selecionada), f"Aula {i}"] = aulas_status[i-1]
-    df.to_csv(data_file, index=False)
-    st.success("Progresso salvo com sucesso! ✅")
+# Fechar conexão com o banco de dados
+conn.close()
