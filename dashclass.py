@@ -1,9 +1,6 @@
 import pandas as pd
-import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output, State, ctx
+import streamlit as st
 import os
-import dash.exceptions
-from dash.dependencies import MATCH, ALL
 
 # Caminho do arquivo CSV para salvar o progresso
 data_file = "registro_aulas.csv"
@@ -36,91 +33,33 @@ if "Disciplina" not in df.columns:
     df["Disciplina"] = df["Turmas"].map({**matutino_turmas, **vespertino_turmas})
     df.to_csv(data_file, index=False)
 
-# Criar o aplicativo Dash
-app = Dash(__name__)
+# Interface no Streamlit
+st.title("Dashboard de Registro de Aulas")
 
-app.layout = html.Div([
-    html.H1("Dashboard de Registro de Aulas", style={'textAlign': 'center'}),
-    
-    html.Label("Selecione o Turno:"),
-    dcc.RadioItems(
-        id="turno-radio",
-        options=[{"label": "Matutino", "value": "Matutino"}, {"label": "Vespertino", "value": "Vespertino"}],
-        value="Matutino",
-        inline=True
-    ),
-    
-    html.Label("Selecione a Turma:"),
-    dcc.Dropdown(
-        id="turma-dropdown",
-        clearable=False
-    ),
-    
-    html.Div(id="disciplina-info", style={'marginTop': '10px', 'fontSize': '18px', 'fontWeight': 'bold'}),
-    
-    html.Div(id="checkboxes-container"),
+# Seletor de turno
+turno_selecionado = st.radio("Selecione o Turno:", ["Matutino", "Vespertino"])
 
-    html.Button("Salvar Progresso", id="save-button", n_clicks=0, style={'marginTop': '20px'}),
-    html.Div(id="save-status", style={'marginTop': '10px'})
-])
+# Filtrar turmas pelo turno selecionado
+turmas_filtradas = df[df["Turno"] == turno_selecionado]
 
-@app.callback(
-    [Output("turma-dropdown", "options"), Output("turma-dropdown", "value")],
-    [Input("turno-radio", "value")]
-)
-def update_turma_options(turno_selecionado):
-    turmas_filtradas = df[df["Turno"] == turno_selecionado][["Turmas", "Disciplina"]]
-    options = [{"label": f"{row['Turmas']} ({row['Disciplina']})", "value": row['Turmas']} for _, row in turmas_filtradas.iterrows()]
-    return options, options[0]["value"]
+# Dropdown para seleção da turma
+turma_selecionada = st.selectbox("Selecione a Turma:", turmas_filtradas["Turmas"].tolist())
 
-@app.callback(
-    Output("disciplina-info", "children"),
-    [Input("turma-dropdown", "value")]
-)
-def update_disciplina_label(turma_selecionada):
-    if not turma_selecionada:
-        return ""
-    disciplina = df[df["Turmas"] == turma_selecionada]["Disciplina"].values[0]
-    return f"Disciplina: {disciplina}"
+# Mostrar disciplina
+disciplina = df[df["Turmas"] == turma_selecionada]["Disciplina"].values[0]
+st.write(f"**Disciplina:** {disciplina}")
 
-@app.callback(
-    Output("checkboxes-container", "children"),
-    [Input("turma-dropdown", "value")]
-)
-def update_checkboxes(turma_selecionada):
-    if not turma_selecionada:
-        return ""
-    df_filtrado = df[df["Turmas"] == turma_selecionada].iloc[0]
-    checkboxes = [
-        html.Label([
-            dcc.Checklist(
-                id={"type": "checkbox", "index": i},
-                options=[{"label": f" Aula {i}", "value": "✔️"}],
-                value=["✔️"] if df_filtrado[f"Aula {i}"] == "✔️" else []
-            )
-        ]) for i in range(1, 11)
-    ]
-    return checkboxes
+# Criar checkboxes para marcar aulas
+aulas_status = []
+st.write("### Registro de Aulas")
+for i in range(1, 11):
+    aula_atual = df.loc[df["Turmas"] == turma_selecionada, f"Aula {i}"].values[0]
+    status = st.checkbox(f"Aula {i}", value=(aula_atual == "✔️"))
+    aulas_status.append("✔️" if status else "❌")
 
-@app.callback(
-    Output("save-status", "children"),
-    [Input("save-button", "n_clicks")],
-    [State("turma-dropdown", "value")],
-    [State({"type": "checkbox", "index": ALL}, "value")]
-)
-def save_progress(n_clicks, turma_selecionada, checkbox_values):
-    if n_clicks == 0 or not turma_selecionada:
-        raise dash.exceptions.PreventUpdate  # Evita atualização desnecessária
-    
-    if not checkbox_values:
-        raise dash.exceptions.PreventUpdate  # Evita erro se checkboxes não foram carregados
-    
-    for i, value in enumerate(checkbox_values, start=1):
-        df.loc[df["Turmas"] == turma_selecionada, f"Aula {i}"] = "✔️" if "✔️" in value else "❌"
+# Botão para salvar
+if st.button("Salvar Progresso"):
+    for i in range(1, 11):
+        df.loc[df["Turmas"] == turma_selecionada, f"Aula {i}"] = aulas_status[i-1]
     df.to_csv(data_file, index=False)
-    
-    return "Progresso salvo com sucesso! ✅"
-
-# Rodar o Dashboard
-if __name__ == "__main__":
-    app.run_server(debug=True)
+    st.success("Progresso salvo com sucesso! ✅")
