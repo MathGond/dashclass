@@ -4,6 +4,7 @@ python dashclass.py
 
 cd C:\Users\Matheus\Documents\python_experience\Dashclass
 
+git remote add origin https://github.com/MathGond/dashclass.git
 
 O que vou propor 
 
