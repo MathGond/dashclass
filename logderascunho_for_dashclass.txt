@@ -1,0 +1,42 @@
+Nosso código está ficando grande, então sugiro que você me oriente onde eu devo fazer as alterações. A ideia é a seguinte. Mantenha o botão de excluir etapas e 
+python dashclass.py
+
+
+cd C:\Users\Matheus\Documents\python_experience\Dashclass
+
+
+O que vou propor 
+
+Quero uma pagina separada para inserção de tarefas diárias e projetos. Deve seguir um fluxo. Juntar a pagina de inserção junto com a página de armazenamento dos projetos fica confuso. Antes de mexer em fontes, cores, etc, quero resolver isso. Deste modo seria:
+
+1ª tela: Opções entre Projetos e Tarefas antecipadas pela pergunta: O que você pretende criar agora ? As duas opções (Projetos e Tarefas diárias) que já estão prontas no código se mudam pra cá. Feita a escolha pelo usuário(digamos que escolheu projetos), seguimos para a próxima:
+
+
+2ª tela A : Campos de inserção:
+
+2.1.Nome do projeto:
+Data de início:
+Data de fim:
+2.2.Etapas do projeto: #campo para inserção de etapas do projeto
+Data de início:
+Data de fim:
+2.2.1. Tarefas de cada etapa #campo para inserção de tarefas de cada etapa
+Data de início:
+Data de fim:
+
+OBS:
+O status da tarefas deve ser cambiável mantendo os parâmetros atuais: ok, em andamento, etc.
+Quando todas as tarefas criadas para etapa X estiverem sido cumpridas, a etapa estará cumprida e a barra de avanço do projeto aumenta. Se um projeto tem 10 etapas e um delas é cumprida, ele avança 10%.
+Crie nesta página um botão escrito "Dashboard de Projetos". Mais a frente você irá entender o sentido do botão. Este botão deve estar no começo da página
+
+Agora digamos que o usuário escolheu : Tarefas Diárias
+
+A princípio transfira pra cá para essa 2ª tela B tudo o que já está atualmente operacional no que diz respeito a Tarefas Diárias. 
+
+Por Fim, crie uma outra página, no melhor estilo Dashboard mesmo, onde apresente um gráfico mostrando a evolução de todos os projetos em curso.  Esta página será acessada quando o usuário teclar o botão que eu pedi pra você criar. Insira nesta tela  um botão de "voltar" para que o usuário retorne à pagina anterior. 
+
+Ultimo botão:
+Tanto na página de Tarefas diárias como na página de Projetos, deve haver um botão indicando para voltar ao início. Este botão pode ser uma casinha ou simplesmente escrito "início"
+
+
+Um Token individual de recompensas por tarefa cumprida ?? Esse token pode ser trocado por algo ? Como ? Pensar nisso como Token cujo lastro é a auto confiança

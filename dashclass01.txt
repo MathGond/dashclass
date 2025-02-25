@@ -1,0 +1,104 @@
+import pandas as pd
+import plotly.graph_objects as go
+from dash import Dash, dcc, html, Input, Output, State, ctx
+import os
+import dash.exceptions
+from dash.dependencies import MATCH, ALL
+
+# Caminho do arquivo CSV para salvar o progresso
+data_file = "registro_aulas.csv"
+
+# Lista atualizada das turmas separadas por turno
+matutino_turmas = [
+    "3°09", "2°07", "2°09", "2°01", "3°10", "1°06", "2°05", "2°04", 
+    "2°06", "2°10", "2°08", "3°09", "2°03", "1°05", "2°02"
+]
+
+vespertino_turmas = [
+    "1°06", "2°09", "2°08", "1°12 (08)", "1°11 (07)", "1°02", "1°13 (09)", 
+    "1°01", "1°05", "1°04", "2°03"
+]
+
+# Criar DataFrame inicial se o arquivo não existir
+if not os.path.exists(data_file):
+    df = pd.DataFrame({"Turmas": matutino_turmas + vespertino_turmas, "Turno": ["Matutino"] * len(matutino_turmas) + ["Vespertino"] * len(vespertino_turmas), 
+                        **{f"Aula {i}": ["❌"] * (len(matutino_turmas) + len(vespertino_turmas)) for i in range(1, 11)}})
+    df.to_csv(data_file, index=False)
+else:
+    df = pd.read_csv(data_file)
+
+# Criar o aplicativo Dash
+app = Dash(__name__)
+
+app.layout = html.Div([
+    html.H1("Dashboard de Registro de Aulas", style={'textAlign': 'center'}),
+    
+    html.Label("Selecione o Turno:"),
+    dcc.RadioItems(
+        id="turno-radio",
+        options=[{"label": "Matutino", "value": "Matutino"}, {"label": "Vespertino", "value": "Vespertino"}],
+        value="Matutino",
+        inline=True
+    ),
+    
+    html.Label("Selecione a Turma:"),
+    dcc.Dropdown(
+        id="turma-dropdown",
+        clearable=False
+    ),
+    
+    html.Div(id="checkboxes-container"),
+
+    html.Button("Salvar Progresso", id="save-button", n_clicks=0, style={'marginTop': '20px'}),
+    html.Div(id="save-status", style={'marginTop': '10px'})
+])
+
+@app.callback(
+    Output("turma-dropdown", "options"),
+    [Input("turno-radio", "value")]
+)
+def update_turma_options(turno_selecionado):
+    turmas_filtradas = df[df["Turno"] == turno_selecionado]["Turmas"].tolist()
+    return [{"label": turma.strip(), "value": turma.strip()} for turma in turmas_filtradas]
+
+@app.callback(
+    Output("checkboxes-container", "children"),
+    [Input("turma-dropdown", "value")]
+)
+def update_checkboxes(turma_selecionada):
+    if not turma_selecionada:
+        return ""
+    df_filtrado = df[df["Turmas"] == turma_selecionada].iloc[0]
+    checkboxes = [
+        html.Label([
+            dcc.Checklist(
+                id={"type": "checkbox", "index": i},
+                options=[{"label": f" Aula {i}", "value": "✔️"}],
+                value=["✔️"] if df_filtrado[f"Aula {i}"] == "✔️" else []
+            )
+        ]) for i in range(1, 11)
+    ]
+    return checkboxes
+
+@app.callback(
+    Output("save-status", "children"),
+    [Input("save-button", "n_clicks")],
+    [State("turma-dropdown", "value")],
+    [State({"type": "checkbox", "index": ALL}, "value")]
+)
+def save_progress(n_clicks, turma_selecionada, checkbox_values):
+    if n_clicks == 0 or not turma_selecionada:
+        raise dash.exceptions.PreventUpdate  # Evita atualização desnecessária
+    
+    if not checkbox_values:
+        raise dash.exceptions.PreventUpdate  # Evita erro se checkboxes não foram carregados
+    
+    for i, value in enumerate(checkbox_values, start=1):
+        df.loc[df["Turmas"] == turma_selecionada, f"Aula {i}"] = "✔️" if "✔️" in value else "❌"
+    df.to_csv(data_file, index=False)
+    
+    return "Progresso salvo com sucesso! ✅"
+
+# Rodar o Dashboard
+if __name__ == "__main__":
+    app.run_server(debug=True)
