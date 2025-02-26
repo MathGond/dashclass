@@ -41,8 +41,17 @@ def obter_turmas():
     return c.fetchall()
 
 def obter_disciplinas(turma_id):
-    c.execute("SELECT nome FROM disciplinas WHERE turma_id = ?", (turma_id,))
-    return [row[0] for row in c.fetchall()]
+    c.execute("SELECT id, nome FROM disciplinas WHERE turma_id = ?", (turma_id,))
+    return c.fetchall()
+
+def excluir_turma(turma_id):
+    c.execute("DELETE FROM turmas WHERE id = ?", (turma_id,))
+    c.execute("DELETE FROM disciplinas WHERE turma_id = ?", (turma_id,))
+    conn.commit()
+
+def excluir_disciplina(disciplina_id):
+    c.execute("DELETE FROM disciplinas WHERE id = ?", (disciplina_id,))
+    conn.commit()
 
 # Interface no Streamlit
 st.title("DashClass - Gerenciamento de Aulas")
@@ -53,6 +62,7 @@ if "pagina" not in st.session_state:
 
 def mudar_pagina():
     st.session_state.pagina = "registro"
+    st.rerun()
 
 # Tela de Cadastro de Turmas e Disciplinas
 if st.session_state.pagina == "cadastro":
@@ -67,9 +77,14 @@ if st.session_state.pagina == "cadastro":
     # Exibir turmas cadastradas
     turmas = obter_turmas()
     if turmas:
-        st.sidebar.subheader("Turmas Cadastradas")
+        st.sidebar.subheader("Gerenciar Turmas")
         for turma in turmas:
-            st.sidebar.text(f"{turma[1]} ({turma[2]})")
+            col1, col2 = st.sidebar.columns([3, 1])
+            col1.text(f"{turma[1]} ({turma[2]})")
+            if col2.button("❌", key=f"del_turma_{turma[0]}"):
+                excluir_turma(turma[0])
+                st.sidebar.warning("Turma excluída!")
+                st.rerun()
     
     # Cadastro de disciplinas
     st.sidebar.subheader("Adicionar Disciplinas")
@@ -80,10 +95,24 @@ if st.session_state.pagina == "cadastro":
             adicionar_disciplina(turma_selecionada[0], nova_disciplina)
             st.sidebar.success("Disciplina adicionada com sucesso!")
     
+    # Exibir disciplinas cadastradas
+    if turmas:
+        st.sidebar.subheader("Gerenciar Disciplinas")
+        for turma in turmas:
+            disciplinas_turma = obter_disciplinas(turma[0])
+            if disciplinas_turma:
+                st.sidebar.text(f"{turma[1]} ({turma[2]})")
+                for disciplina in disciplinas_turma:
+                    col1, col2 = st.sidebar.columns([3, 1])
+                    col1.text(disciplina[1])
+                    if col2.button("❌", key=f"del_disc_{disciplina[0]}"):
+                        excluir_disciplina(disciplina[0])
+                        st.sidebar.warning("Disciplina excluída!")
+                        st.rerun()
+    
     # Botão para finalizar cadastro e ir para tela principal
     if st.sidebar.button("Finalizar Cadastro e Ir para Registro de Aulas"):
         mudar_pagina()
-        st.experimental_rerun()
 
 # Tela de Registro de Aulas
 if st.session_state.pagina == "registro":
@@ -94,7 +123,7 @@ if st.session_state.pagina == "registro":
         disciplinas_turma = obter_disciplinas(turma_opcao[0])
         if disciplinas_turma:
             disciplina_opcao = st.selectbox("Selecione a Disciplina:", disciplinas_turma, key="disciplina_registro")
-            st.write(f"**Disciplina:** {disciplina_opcao}")
+            st.write(f"**Disciplina:** {disciplina_opcao[1]}")
             
             # Criar checkboxes para marcar aulas
             aulas_status = []
