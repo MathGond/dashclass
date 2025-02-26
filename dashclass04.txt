@@ -44,12 +44,6 @@ def adicionar_turma(nome, turno):
     c.execute("INSERT INTO turmas (nome, turno) VALUES (?, ?)", (nome, turno))
     conn.commit()
 
-def excluir_turma(turma_id):
-    c.execute("DELETE FROM turmas WHERE id = ?", (turma_id,))
-    c.execute("DELETE FROM disciplinas WHERE turma_id = ?", (turma_id,))
-    c.execute("DELETE FROM aulas WHERE turma_id = ?", (turma_id,))
-    conn.commit()
-
 def adicionar_disciplina(turma_id, nome):
     c.execute("INSERT INTO disciplinas (turma_id, nome) VALUES (?, ?)", (turma_id, nome))
     conn.commit()
@@ -103,10 +97,6 @@ if menu == "Cadastro de Turmas":
         for turma in turmas:
             col1, col2 = st.sidebar.columns([3, 1])
             col1.text(f"{turma[1]} ({turma[2]})")
-            if col2.button("❌", key=f"del_turma_{turma[0]}"):
-                excluir_turma(turma[0])
-                st.sidebar.warning("Turma excluída!")
-                st.rerun()
     
     st.sidebar.subheader("Adicionar Disciplinas")
     if turmas:
