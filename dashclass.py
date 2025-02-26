@@ -60,8 +60,8 @@ st.title("DashClass - Gerenciamento de Aulas")
 if "pagina" not in st.session_state:
     st.session_state.pagina = "cadastro"
 
-def mudar_pagina():
-    st.session_state.pagina = "registro"
+def mudar_pagina(pagina):
+    st.session_state.pagina = pagina
     st.rerun()
 
 # Tela de Cadastro de Turmas e Disciplinas
@@ -95,24 +95,9 @@ if st.session_state.pagina == "cadastro":
             adicionar_disciplina(turma_selecionada[0], nova_disciplina)
             st.sidebar.success("Disciplina adicionada com sucesso!")
     
-    # Exibir disciplinas cadastradas
-    if turmas:
-        st.sidebar.subheader("Gerenciar Disciplinas")
-        for turma in turmas:
-            disciplinas_turma = obter_disciplinas(turma[0])
-            if disciplinas_turma:
-                st.sidebar.text(f"{turma[1]} ({turma[2]})")
-                for disciplina in disciplinas_turma:
-                    col1, col2 = st.sidebar.columns([3, 1])
-                    col1.text(disciplina[1])
-                    if col2.button("❌", key=f"del_disc_{disciplina[0]}"):
-                        excluir_disciplina(disciplina[0])
-                        st.sidebar.warning("Disciplina excluída!")
-                        st.rerun()
-    
     # Botão para finalizar cadastro e ir para tela principal
     if st.sidebar.button("Finalizar Cadastro e Ir para Registro de Aulas"):
-        mudar_pagina()
+        mudar_pagina("registro")
 
 # Tela de Registro de Aulas
 if st.session_state.pagina == "registro":
@@ -139,6 +124,10 @@ if st.session_state.pagina == "registro":
             st.warning("Esta turma ainda não possui disciplinas cadastradas.")
     else:
         st.warning("Nenhuma turma cadastrada. Cadastre uma turma no menu lateral.")
+    
+    # Botão para retornar ao cadastro
+    if st.button("Voltar para Cadastro de Turmas"):
+        mudar_pagina("cadastro")
 
 # Fechar conexão com o banco de dados
 conn.close()
