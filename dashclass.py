@@ -79,8 +79,34 @@ def mudar_pagina(pagina):
     st.session_state.pagina = pagina
     st.rerun()
 
-# Tela de Registro de Aulas
-if st.session_state.pagina == "registro":
+# Menu de navegação
+menu = st.sidebar.radio("Navegação", ["Cadastro de Turmas", "Registro de Aulas"])
+
+if menu == "Cadastro de Turmas":
+    st.sidebar.title("Cadastro de Turmas")
+    novo_nome_turma = st.sidebar.text_input("Nome da Turma:")
+    turno_turma = st.sidebar.radio("Turno:", ["Matutino", "Vespertino"])
+    
+    if st.sidebar.button("Adicionar Turma") and novo_nome_turma:
+        adicionar_turma(novo_nome_turma, turno_turma)
+        st.sidebar.success("Turma adicionada com sucesso!")
+    
+    turmas = obter_turmas()
+    if turmas:
+        st.sidebar.subheader("Gerenciar Turmas")
+        for turma in turmas:
+            col1, col2 = st.sidebar.columns([3, 1])
+            col1.text(f"{turma[1]} ({turma[2]})")
+    
+    st.sidebar.subheader("Adicionar Disciplinas")
+    if turmas:
+        turma_selecionada = st.sidebar.selectbox("Selecione a Turma:", turmas, format_func=lambda x: f"{x[1]} ({x[2]})")
+        nova_disciplina = st.sidebar.text_input("Nome da Disciplina:")
+        if st.sidebar.button("Adicionar Disciplina") and nova_disciplina:
+            adicionar_disciplina(turma_selecionada[0], nova_disciplina)
+            st.sidebar.success("Disciplina adicionada com sucesso!")
+
+elif menu == "Registro de Aulas":
     st.header("Registro de Aulas")
     turmas = obter_turmas()
     if turmas:
@@ -90,10 +116,8 @@ if st.session_state.pagina == "registro":
             disciplina_opcao = st.selectbox("Selecione a Disciplina:", disciplinas_turma, key="disciplina_registro")
             st.write(f"**Disciplina:** {disciplina_opcao[1]}")
             
-            # Obter status das aulas
             status_aulas = obter_status_aulas(turma_opcao[0], disciplina_opcao[0])
             
-            # Criar checkboxes para marcar aulas
             st.write("### Registro de Aulas")
             for i in range(1, 11):
                 status = status_aulas.get(i, "❌")
@@ -108,10 +132,6 @@ if st.session_state.pagina == "registro":
             st.warning("Esta turma ainda não possui disciplinas cadastradas.")
     else:
         st.warning("Nenhuma turma cadastrada. Cadastre uma turma no menu lateral.")
-    
-    # Botão para retornar ao cadastro
-    if st.button("Voltar para Cadastro de Turmas"):
-        mudar_pagina("cadastro")
 
 # Fechar conexão com o banco de dados
 conn.close()
