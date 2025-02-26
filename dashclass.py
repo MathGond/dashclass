@@ -75,7 +75,8 @@ def atualizar_status_aula(turma_id, disciplina_id, aula_num, status):
     conn.commit()
 
 # Interface no Streamlit
-st.title("DashClass - Gerenciamento de Aulas")
+st.markdown("<h2 style='text-align: center;'>DashClass - Gerenciamento de Aulas</h2>", unsafe_allow_html=True)
+
 
 # Controle de exibição de telas
 if "pagina" not in st.session_state:
