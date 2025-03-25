@@ -2,147 +2,133 @@ import os
 import sqlite3
 import pandas as pd
 import streamlit as st
+import plotly.graph_objects as go
 
-# Criar banco de dados SQLite
-DB_FILE = "dashclass.db"
-conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-c = conn.cursor()
-
-# Criar tabelas se não existirem
-c.execute('''
-CREATE TABLE IF NOT EXISTS turmas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL,
-    turno TEXT NOT NULL
-)
-''')
-
-c.execute('''
-CREATE TABLE IF NOT EXISTS disciplinas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    turma_id INTEGER NOT NULL,
-    nome TEXT NOT NULL,
-    FOREIGN KEY (turma_id) REFERENCES turmas (id)
-)
-''')
-
-c.execute('''
-CREATE TABLE IF NOT EXISTS aulas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    turma_id INTEGER NOT NULL,
-    disciplina_id INTEGER NOT NULL,
-    aula_num INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT '❌',
-    FOREIGN KEY (turma_id) REFERENCES turmas (id),
-    FOREIGN KEY (disciplina_id) REFERENCES disciplinas (id)
-)
-''')
-conn.commit()
-
-# Funções do banco de dados
-def adicionar_turma(nome, turno):
-    c.execute("INSERT INTO turmas (nome, turno) VALUES (?, ?)", (nome, turno))
-    conn.commit()
-
-def excluir_turma(turma_id):
-    c.execute("DELETE FROM turmas WHERE id = ?", (turma_id,))
-    c.execute("DELETE FROM disciplinas WHERE turma_id = ?", (turma_id,))
-    c.execute("DELETE FROM aulas WHERE turma_id = ?", (turma_id,))
-    conn.commit()
-
-def adicionar_disciplina(turma_id, nome):
-    c.execute("INSERT INTO disciplinas (turma_id, nome) VALUES (?, ?)", (turma_id, nome))
-    conn.commit()
-    disciplina_id = c.lastrowid
-    for aula_num in range(1, 11):
-        c.execute("INSERT INTO aulas (turma_id, disciplina_id, aula_num) VALUES (?, ?, ?)", (turma_id, disciplina_id, aula_num))
-    conn.commit()
-
-def obter_turmas():
-    c.execute("SELECT id, nome, turno FROM turmas")
-    return c.fetchall()
-
-def obter_disciplinas(turma_id):
-    c.execute("SELECT id, nome FROM disciplinas WHERE turma_id = ?", (turma_id,))
-    return c.fetchall()
-
-def obter_status_aulas(turma_id, disciplina_id):
-    c.execute("SELECT aula_num, status FROM aulas WHERE turma_id = ? AND disciplina_id = ? ORDER BY aula_num", (turma_id, disciplina_id))
-    return dict(c.fetchall())
-
-def atualizar_status_aula(turma_id, disciplina_id, aula_num, status):
-    c.execute("UPDATE aulas SET status = ? WHERE turma_id = ? AND disciplina_id = ? AND aula_num = ?", (status, turma_id, disciplina_id, aula_num))
-    conn.commit()
-
-# Interface no Streamlit
+# Interface Streamlit
+st.set_page_config(page_title="DashClass", layout="centered")
 st.markdown("<h2 style='text-align: center;'>DashClass - Gerenciamento de Aulas</h2>", unsafe_allow_html=True)
 
+# Funções com controle de conexão seguro
+def adicionar_turma(nome, turno, nivel, subnivel):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO turmas (nome, turno, nivel, subnivel) VALUES (?, ?, ?, ?)", (nome, turno, nivel, subnivel))
+        turma_id = c.lastrowid
+        c.execute('''
+            SELECT a.id FROM aulas a
+            JOIN disciplinas d ON a.disciplina_id = d.id
+            WHERE d.nivel = ? AND d.subnivel = ?
+        ''', (nivel, subnivel))
+        aulas_existentes = c.fetchall()
+        for (aula_id,) in aulas_existentes:
+            c.execute("INSERT INTO controle_aulas (turma_id, aula_id, status) VALUES (?, ?, '❌')", (turma_id, aula_id))
+        conn.commit()
 
-# Controle de exibição de telas
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "cadastro"
+def excluir_turma(turma_id):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM controle_aulas WHERE turma_id = ?", (turma_id,))
+        c.execute("DELETE FROM turmas WHERE id = ?", (turma_id,))
+        conn.commit()
 
-def mudar_pagina(pagina):
-    st.session_state.pagina = pagina
-    st.rerun()
+def excluir_disciplina(disciplina_id):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM controle_aulas WHERE aula_id IN (SELECT id FROM aulas WHERE disciplina_id = ?)", (disciplina_id,))
+        c.execute("DELETE FROM aulas WHERE disciplina_id = ?", (disciplina_id,))
+        c.execute("DELETE FROM disciplinas WHERE id = ?", (disciplina_id,))
+        conn.commit()
 
-# Menu de navegação
-menu = st.sidebar.radio("Navegação", ["Cadastro de Turmas", "Registro de Aulas"])
+def obter_turmas_filtradas(nivel, subnivel, turno):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, nome FROM turmas WHERE nivel = ? AND subnivel = ? AND turno = ?", (nivel, subnivel, turno))
+        return c.fetchall()
 
-if menu == "Cadastro de Turmas":
-    st.sidebar.title("Cadastro de Turmas")
-    novo_nome_turma = st.sidebar.text_input("Nome da Turma:")
-    turno_turma = st.sidebar.radio("Turno:", ["Matutino", "Vespertino"])
-    
-    if st.sidebar.button("Adicionar Turma") and novo_nome_turma:
-        adicionar_turma(novo_nome_turma, turno_turma)
-        st.sidebar.success("Turma adicionada com sucesso!")
-    
-    turmas = obter_turmas()
-    if turmas:
-        st.sidebar.subheader("Gerenciar Turmas")
+def obter_turmas():
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, nome, turno, nivel, subnivel FROM turmas")
+        return c.fetchall()
+
+def obter_disciplinas():
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, nome FROM disciplinas")
+        return c.fetchall()
+
+def obter_aulas_por_disciplina(disciplina_id):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT aula_num, titulo, conteudo FROM aulas WHERE disciplina_id = ? ORDER BY aula_num", (disciplina_id,))
+        return c.fetchall()
+
+def adicionar_disciplina(nome, nivel, subnivel):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO disciplinas (nome, nivel, subnivel) VALUES (?, ?, ?)", (nome, nivel, subnivel))
+        conn.commit()
+
+def obter_disciplinas_por_nivel(nivel, subnivel):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, nome FROM disciplinas WHERE nivel = ? AND subnivel = ?", (nivel, subnivel))
+        return c.fetchall()
+
+def salvar_aula(disciplina_id, aula_num, titulo, conteudo):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO aulas (disciplina_id, aula_num, titulo, conteudo) VALUES (?, ?, ?, ?)", (disciplina_id, aula_num, titulo, conteudo))
+        aula_id = c.lastrowid
+        c.execute("SELECT nivel, subnivel FROM disciplinas WHERE id = ?", (disciplina_id,))
+        nivel, subnivel = c.fetchone()
+        c.execute("SELECT id FROM turmas WHERE nivel = ? AND subnivel = ?", (nivel, subnivel))
+        turmas = c.fetchall()
         for turma in turmas:
-            col1, col2 = st.sidebar.columns([3, 1])
-            col1.text(f"{turma[1]} ({turma[2]})")
-            if col2.button("❌", key=f"del_turma_{turma[0]}"):
-                excluir_turma(turma[0])
-                st.sidebar.warning("Turma excluída!")
-                st.rerun()
-    
-    st.sidebar.subheader("Adicionar Disciplinas")
-    if turmas:
-        turma_selecionada = st.sidebar.selectbox("Selecione a Turma:", turmas, format_func=lambda x: f"{x[1]} ({x[2]})")
-        nova_disciplina = st.sidebar.text_input("Nome da Disciplina:")
-        if st.sidebar.button("Adicionar Disciplina") and nova_disciplina:
-            adicionar_disciplina(turma_selecionada[0], nova_disciplina)
-            st.sidebar.success("Disciplina adicionada com sucesso!")
+            c.execute("INSERT INTO controle_aulas (turma_id, aula_id, status) VALUES (?, ?, '❌')", (turma[0], aula_id))
+        conn.commit()
 
-elif menu == "Registro de Aulas":
-    st.header("Registro de Aulas")
-    turmas = obter_turmas()
-    if turmas:
-        turma_opcao = st.selectbox("Selecione a Turma:", turmas, key="turma_registro", format_func=lambda x: f"{x[1]} ({x[2]})")
-        disciplinas_turma = obter_disciplinas(turma_opcao[0])
-        if disciplinas_turma:
-            disciplina_opcao = st.selectbox("Selecione a Disciplina:", disciplinas_turma, key="disciplina_registro")
-            st.write(f"**Disciplina:** {disciplina_opcao[1]}")
-            
-            status_aulas = obter_status_aulas(turma_opcao[0], disciplina_opcao[0])
-            
-            st.write("### Registro de Aulas")
-            for i in range(1, 11):
-                status = status_aulas.get(i, "❌")
-                checked = status == "✔️"
-                if st.checkbox(f"Aula {i}", value=checked, key=f"aula_{turma_opcao[0]}_{disciplina_opcao[0]}_{i}"):
-                    atualizar_status_aula(turma_opcao[0], disciplina_opcao[0], i, "✔️")
-                else:
-                    atualizar_status_aula(turma_opcao[0], disciplina_opcao[0], i, "❌")
-            
-            st.success("Progresso salvo automaticamente! ✅")
-        else:
-            st.warning("Esta turma ainda não possui disciplinas cadastradas.")
-    else:
-        st.warning("Nenhuma turma cadastrada. Cadastre uma turma no menu lateral.")
+def obter_aulas_por_turma(turma_id):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute('''
+            SELECT ca.id, d.nome, a.aula_num, a.titulo, ca.status
+            FROM controle_aulas ca
+            JOIN aulas a ON ca.aula_id = a.id
+            JOIN disciplinas d ON a.disciplina_id = d.id
+            WHERE ca.turma_id = ?
+            ORDER BY d.nome, a.aula_num
+        ''', (turma_id,))
+        return c.fetchall()
 
-# Fechar conexão com o banco de dados
-conn.close()
+def atualizar_status_aula(controle_id, status):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute("UPDATE controle_aulas SET status = ? WHERE id = ?", (status, controle_id))
+        conn.commit()
+
+def obter_progresso_turmas_filtrado(nivel, subnivel, turno):
+    with sqlite3.connect("dashclass.db") as conn:
+        c = conn.cursor()
+        c.execute('''
+            SELECT t.nome, t.nivel, t.subnivel, t.turno,
+                   SUM(CASE WHEN ca.status = '✅' THEN 1 ELSE 0 END) AS feitas,
+                   COUNT(ca.id) as total
+            FROM controle_aulas ca
+            JOIN turmas t ON ca.turma_id = t.id
+            WHERE t.nivel = ? AND t.subnivel = ? AND t.turno = ?
+            GROUP BY ca.turma_id
+        ''', (nivel, subnivel, turno))
+        return c.fetchall()
+
+# Nova opção no menu
+menu = st.sidebar.radio("Navegação", ["Cadastro de Turmas", "Registro de Aulas", "Controle de Aulas Dadas", "Gráfico de Aulas Dadas", "Visualizar Aulas Registradas", "Excluir Turma", "Excluir Disciplina"])
+
+if menu == "Excluir Disciplina":
+    st.header("Excluir Disciplina")
+    disciplinas = obter_disciplinas()
+    if disciplinas:
+        disciplina_opcao = st.selectbox("Selecione a Disciplina para excluir:", disciplinas, format_func=lambda x: x[1])
+        if st.button("Excluir Disciplina"):
+            excluir_disciplina(disciplina_opcao[0])
+            st.success("Disciplina excluída com sucesso!")
