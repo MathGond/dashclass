@@ -8,7 +8,7 @@ st.markdown("<h2 style='text-align: center;'>DashClass - Gerenciamento de Aulas<
 # Menu lateral
 st.sidebar.markdown("### Navegação")
 menu_opcoes = [
-    "Cadastro de Turmas" (Tela inicial),
+    "Cadastro de Turmas(Tela inicial)" ,
     "Registro de Aulas",
     "Controle de Aulas Dadas",
     "Gráfico de Aulas Dadas",
